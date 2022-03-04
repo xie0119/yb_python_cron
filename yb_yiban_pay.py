@@ -10,11 +10,9 @@ import json
 import re
 import requests
 from env import Env
-from common import YbLogin
 
-UserAgent = Env.UserAgent
+UserAgent = Env.UserAgent3
 AppVersion = Env.AppVersion
-yb = YbLogin()
 
 
 # 将支付金额转换为对应ID
@@ -24,7 +22,7 @@ def get_data_id(num):
 
 
 # 支付网薪
-def payment(access_token, http_waf_cookie, data_id):
+def payment(cookie):
     """
     支付网薪
 
@@ -37,94 +35,82 @@ def payment(access_token, http_waf_cookie, data_id):
     9  = 800网薪（送20网薪体验金）；
     :return:
     """
+    try:
+        data_id = '3'
 
-    headers = {
-        'Authorization': 'Bearer ' + access_token,
-        'AppVersion': AppVersion,
-        'Accept-Encoding': 'gzip, deflate',
-        'Accept-Language': 'zh-CN,zh-Hans;q=0.9',
-        'loginToken': access_token,
-        'User-Agent': UserAgent,
-        'Cookie': 'client=iOS; loginToken=' + access_token + '; yibanM_user_token=' + access_token + '; http_waf_cookie=' + http_waf_cookie
-    }
+        url = "https://f.yiban.cn/iframe/index?act=iapp642231"
 
-    session = requests.session()
-    # 先登录
-    session.get("http://f.yiban.cn/iapp642231", headers=headers)
-    # session.get("https://f.yiban.cn/iapp/index?act=iapp642231", headers=headers)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x6305002e)',
+            'Cookie': cookie
+        }
+        session = requests.session()
+        session.get(url, headers=headers)
 
-    cookies = 'SERVERID=' + session.cookies.get('SERVERID') + '; client=iOS; PHPSESSID=' + session.cookies.get(
-        'PHPSESSID')
+        # 下单地址
+        pay_url = "https://daka.yibangou.com/index.php?m=Wap&c=User&a=chongzhi&dataname=1&dataid=" + data_id
 
-    # 下单地址
-    pay_url = "https://daka.yibangou.com/index.php?m=Wap&c=User&a=chongzhi&dataname=1&dataid=" + data_id
+        headers = {
+            'Host': 'daka.yibangou.com',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            'Connection': 'keep-alive',
+            'User-Agent': UserAgent,
+            'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Referer': 'https://daka.yibangou.com/index.php?m=Wap&c=Index&a=index&res=29',
+            'Accept-Encoding': 'gzip, deflate, br',
+        }
 
-    headers = {
-        'Host': 'daka.yibangou.com',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Connection': 'keep-alive',
-        'Cookie': cookies,
-        'User-Agent': UserAgent,
-        'Accept-Language': 'zh-CN,zh-Hans;q=0.9',
-        'Referer': 'https://daka.yibangou.com/index.php?m=Wap&c=Index&a=index&res=29',
-        'Accept-Encoding': 'gzip, deflate, br',
-    }
+        resp = session.get(pay_url, headers=headers).text
 
-    resp = requests.get(pay_url, headers=headers).text
+        dataid = re.findall(r'name="dataid" value="(.*?)"', resp)[0]
+        dataname = re.findall(r'name="dataname" value="(.*?)"', resp)[0]
+        danhao = re.findall(r'name="danhao" value="(.*?)"', resp)[0]
 
-    dataid = re.findall(r'name="dataid" value="(.*?)"', resp)[0]
-    dataname = re.findall(r'name="dataname" value="(.*?)"', resp)[0]
-    danhao = re.findall(r'name="danhao" value="(.*?)"', resp)[0]
+        params = {
+            "danhao": danhao,
+            "dataid": dataid,
+            "dataname": dataname
+        }
+        headers = {
+            'Host': 'daka.yibangou.com',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept-Language': 'zh-CN,zh-Hans;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Origin': 'https://daka.yibangou.com',
+            'User-Agent': UserAgent,
+            'Connection': 'keep-alive',
+            'Referer': pay_url,
+        }
 
-    params = {
-        "danhao": danhao,
-        "dataid": dataid,
-        "dataname": dataname
-    }
-    headers = {
-        'Host': 'daka.yibangou.com',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Accept-Language': 'zh-CN,zh-Hans;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Origin': 'https://daka.yibangou.com',
-        'User-Agent': UserAgent,
-        'Connection': 'keep-alive',
-        'Referer': pay_url,
-        'Cookie': cookies,
-    }
-    # print(cookies)
-    resp = requests.post("https://daka.yibangou.com/index.php?m=Wap&c=Ajax&a=yibanpay", data=params,
-                         headers=headers).text
-    result = json.loads(resp)
-    code = int(result['code'])
-    if code == 200:
-        return {'code': code, 'msg': '支付成功'}
-    elif code == 1:
-        return {'code': code, 'msg': '余额不足'}
-    elif code == 2:
-        return {'code': code, 'msg': '跳转首页'}
-    else:
-        return {'code': code, 'msg': '未知状态'}
+        resp = session.post("https://daka.yibangou.com/index.php?m=Wap&c=Ajax&a=yibanpay", data=params,
+                            headers=headers).text
+        result = json.loads(resp)
+        code = int(result['code'])
+        if code == 200:
+            return {'code': code, 'msg': '支付成功'}
+        elif code == 1:
+            return {'code': code, 'msg': '余额不足'}
+        elif code == 2:
+            return {'code': code, 'msg': '跳转首页'}
+        else:
+            return {'code': code, 'msg': '未知状态'}
+    except Exception as ex:
+        return {'code': -1, 'msg': ex}
 
 
 # 脚本
 if __name__ == '__main__':
-    result = Env().get_env('YB_ACCOUNT')
+    result = Env().get_env('YB_COOKIE')
     if result['code'] != 1:
         print(result['msg'])
         exit(0)
-
     for i in result['data']:
-        # 空格分割账号密码
-        account, password, money = i.split('|', 2)
+        try:
+            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
+            result = payment(i)
+            print('状态 token:%s %s %s' % (token, result['code'], result['msg']))
+        except Exception as ex:
+            print('状态 %s' % ex)
 
-        # 登录账号
-        result = yb.login(account, password)
-        if result['response'] != 100:
-            print('状态 %s %s %s' % (account, result['response'], result['message']))
-            continue
-
-        result = payment(result['data']['access_token'], result['http_waf_cookie'], get_data_id(money))
-        print('状态 %s %s %s' % (account, result['code'], result['msg']))

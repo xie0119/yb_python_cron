@@ -44,6 +44,9 @@ if __name__ == '__main__':
         print(result['msg'])
         exit(0)
     for i in result['data']:
-        result = set_sign(i)
-        pattern = re.search(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i, re.M | re.I)
-        print('状态 %d %s %s' % (result['code'], result['msg'], pattern.group() if pattern else None))
+        try:
+            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
+            result = set_sign(i)
+            print('状态 token:%s %s %s' % (token, result['code'], result['msg']))
+        except Exception as ex:
+            print('状态 %s' % ex)

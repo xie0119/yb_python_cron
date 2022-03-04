@@ -15,14 +15,13 @@ UserAgent = Env.UserAgent2
 
 # 检测cookie是否正确
 def login(cookie):
-    url = 'https://www.yiban.cn/ajax/my/getLogin'
+    url = 'https://s.yiban.cn/api/my/getInfo'
     headers = {
         'Cookie': cookie,
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept': 'application/json, text/plain, */*',
         'Connection': 'keep-alive',
-        'Referer': 'https://www.yiban.cn/',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Host': 'www.yiban.cn',
+        'Host': 's.yiban.cn',
         'User-Agent': UserAgent,
         'Accept-Language': 'zh-CN,zh;q=0.9'
     }
@@ -39,10 +38,14 @@ if __name__ == '__main__':
     if result['code'] != 1:
         print(result['msg'])
         exit(0)
+
     for i in result['data']:
-        result = login(i)
-        if result['code'] != 200:
-            pattern = re.search(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i, re.M | re.I)
-            print('Cookie失效 %d %s %s' % (result['code'], result['msg'], pattern.group() if pattern else None))
-        else:
-            print('验证成功 id:%d nick:%s token:%s' % (result['data']['user']['id'], result['data']['user']['nick'], result['data']['user']['token']))
+        try:
+            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
+            result = login(i)
+            if result['code'] != 200:
+                print('Cookie失效 %d %s %s' % (result['code'], result['msg'], token))
+            else:
+                print('操作成功 id:%s nick:%s token:%s' % ( result['data']['id'], result['data']['nick'], token))
+        except Exception as ex:
+            print('状态 %s' % ex)
