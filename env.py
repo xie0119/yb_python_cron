@@ -29,15 +29,16 @@ class Env:
             return '/ql/config/env.sh'
         elif os.path.exists('/ql/config/cookie.sh'):
             return '/ql/config/env.sh'
+        return False
 
     # 获取指定 环境变量
     def get_env(self, name):
         try:
             if os.path.exists(self.check_file()) is False:
                 return {'code': -1, 'msg': '当前环境青龙面板旧版'}
-            if name in os.environ:
-                cookies = os.environ[name]
-                return {'code': 1, 'msg': '获取成功', 'data': cookies.split('&')}
-            return {'code': -1, 'msg': '获取变量失败'}
+            if name not in os.environ:
+                return {'code': -1, 'msg': f'环境变量[{name}]不存在'}
+            cookies = os.environ[name]
+            return {'code': 1, 'msg': '获取成功', 'data': cookies.split('&')}
         except Exception as ex:
             return {'code': -2, 'msg': "获取变量失败 " + str(ex)}

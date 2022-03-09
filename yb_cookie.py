@@ -1,51 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 """
-cron: 0 0 0/1 * * ?
-new Env('易班-Cookie校验');
+cron: 0 0 6 * * ?
+new Env('易班-Cookie更新');
 """
-
-import re
-import json
-import requests
-from env import Env
-
-UserAgent = Env.UserAgent2
-
-
-# 检测cookie是否正确
-def login(cookie):
-    url = 'https://s.yiban.cn/api/my/getInfo'
-    headers = {
-        'Cookie': cookie,
-        'Accept': 'application/json, text/plain, */*',
-        'Connection': 'keep-alive',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Host': 's.yiban.cn',
-        'User-Agent': UserAgent,
-        'Accept-Language': 'zh-CN,zh;q=0.9'
-    }
-    try:
-        resp = requests.get(url=url, verify=False, headers=headers, timeout=60).text
-        resp = json.loads(resp)
-        return {'code': int(resp['code']), 'msg': resp['message'], 'data': resp['data'] if (resp['data']) else None}
-    except Exception:
-        return {'code': -1, 'msg': '签到失败'}
-
+from common import OpenApi, YiBan
 
 if __name__ == '__main__':
-    result = Env().get_env('YB_COOKIE')
-    if result['code'] != 1:
-        print(result['msg'])
+    api = OpenApi()
+    result = api.get_token()
+    if result['code'] != 200:
+        print(result['massage'])
+        exit(0)
+    result = api.get_envs()
+    if result['code'] != 200:
+        print(result['massage'])
         exit(0)
 
     for i in result['data']:
+        # 遍历 'YB_COOKIE'
+        if i['name'] not in 'YB_COOKIE':
+            continue
+
+        yb = YiBan()
         try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            result = login(i)
+            lit = i['remarks'].split('|')
+            account = lit[0]
+            password = lit[1]
+            result = yb.chrome_login(account, password)
             if result['code'] != 200:
-                print('Cookie失效 %d %s %s' % (result['code'], result['msg'], token))
-            else:
-                print('操作成功 id:%s nick:%s token:%s' % ( result['data']['id'], result['data']['nick'], token))
+                print('Cookie: 登录失败 %s %s' % (account, result['message']))
+                continue
+            yiban_token = f'yiban_user_token={result["yiban_user_token"]};'
+            result = api.update_envs(i['id'], i['name'], yiban_token, i['remarks'])
+            print('Cookie: 更新成功 user: %s token: %s' % (account, yiban_token))
         except Exception as ex:
-            print('状态 %s' % ex)
+            print('Cookie: 更新失败 ' + i['remarks'] + str(ex))

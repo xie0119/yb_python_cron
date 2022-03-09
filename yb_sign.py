@@ -7,11 +7,10 @@ RandomDelay="300"
 """
 
 import re
-import json
 import requests
 from env import Env
 
-UserAgent = Env.UserAgent2
+env = Env()
 
 
 def set_sign(cookie):
@@ -27,19 +26,18 @@ def set_sign(cookie):
         'Referer': 'https://www.yiban.cn/user/info/index',
         'Accept-Encoding': 'gzip, deflate, br',
         'Host': 'www.yiban.cn',
-        'User-Agent': UserAgent,
+        'User-Agent': env.UserAgent2,
         'Accept-Language': 'zh-CN,zh;q=0.9'
     }
     try:
-        resp = requests.post(url=url, data=param, verify=False, headers=headers, timeout=60).text
-        resp = json.loads(resp)
+        resp = requests.post(url=url, data=param, verify=False, headers=headers, timeout=60).json()
         return {'code': int(resp['code']), 'msg': resp['message']}
-    except Exception:
-        return {'code': -1, 'msg': '签到失败'}
+    except Exception as ex:
+        return {'code': -1, 'msg': '签到失败' + str(ex)}
 
 
 if __name__ == '__main__':
-    result = Env().get_env('YB_COOKIE')
+    result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
         print(result['msg'])
         exit(0)
@@ -47,6 +45,6 @@ if __name__ == '__main__':
         try:
             token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
             result = set_sign(i)
-            print('状态 token:%s %s %s' % (token, result['code'], result['msg']))
+            print('每日签到 token:%s %s %s' % (token, result['code'], result['msg']))
         except Exception as ex:
-            print('状态 %s' % ex)
+            print('每日签到 %s' % ex)
