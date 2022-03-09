@@ -4,6 +4,7 @@
 cron: 0 0 9 * * ?
 new Env('易班-易伴参与挑战');
 RandomDelay="300"
+tag: yb_yiban_pay
 """
 import re
 import requests
@@ -83,7 +84,7 @@ def payment(cookie):
         }
 
         # 支付方式 0 = 余额, 1 = 网薪
-        type = ['Payue', 'yibanpay']
+        type = ['Payyue', 'yibanpay']
         url = 'https://daka.yibangou.com/index.php?m=Wap&c=Ajax&a='
         resp = session.post(url + type[0], data=params, headers=headers).json()
         code = int(resp['code'])

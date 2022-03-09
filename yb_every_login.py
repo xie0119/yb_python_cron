@@ -3,6 +3,7 @@
 """
 cron: 0 10 6 * * ?
 new Env('易班-每日登录');
+tag: yb_every_login
 """
 import re
 from env import Env

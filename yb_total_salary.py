@@ -3,6 +3,7 @@
 """
 cron: 0 0 12 * * ?
 new Env('易班-网薪统计');
+tag: yb_total_salary
 """
 import re
 from env import Env

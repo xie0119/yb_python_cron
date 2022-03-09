@@ -4,6 +4,7 @@
 cron: 0 0 8 * * ?
 new Env('易班-每日签到');
 RandomDelay="300"
+tag: yb_sign
 """
 
 import re

@@ -4,6 +4,7 @@
 cron: 0 20 6-7 * * ?
 new Env('易班-易伴打卡');
 RandomDelay="300"
+tag: yb_yiban_sign
 """
 import re
 import base64

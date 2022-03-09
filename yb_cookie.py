@@ -3,6 +3,7 @@
 """
 cron: 0 0 6 * * ?
 new Env('易班-Cookie更新');
+tag: yb_cookie
 """
 from common import OpenApi, YiBan
 
@@ -10,11 +11,11 @@ if __name__ == '__main__':
     api = OpenApi()
     result = api.get_token()
     if result['code'] != 200:
-        print(result['massage'])
+        print(result['message'])
         exit(0)
     result = api.get_envs()
     if result['code'] != 200:
-        print(result['massage'])
+        print(result['message'])
         exit(0)
 
     for i in result['data']:

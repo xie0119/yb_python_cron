@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*
 """
 cron: 0 0 7 * * ?
-new Env('易班-微社区-点赞评论发帖');
+new Env('易班-微社区');
+tag: yb_weishequ
 """
 import re
 import json
@@ -11,9 +12,12 @@ import threading
 import requests
 from env import Env
 from time import time, sleep
-from common import YiBan
+from common import YiBan, OneSay
 
 env = Env()
+YB_CONTENT = []
+one = OneSay()
+GET_ONE = True
 
 
 def get_token(cookie):
@@ -139,13 +143,19 @@ def del_comment(post_id, uid, ck, tk):
 
 
 # 发帖
-def set_advanced(ct, ck, count):
-    # 评论数量
-    num = len(ct) - 1
+def set_advanced(ck, count):
+    global YB_CONTENT
+
+    while True:
+        if len(YB_CONTENT):
+            sleep(5)
+            break
+
+    # 数量
     for n in range(count):
         consume = 0.0
-        content = ct[random.randint(0, num)]
         for i in ck:
+            num = random.randint(0, len(YB_CONTENT) - 1)
             url = 'https://s.yiban.cn/api/post/advanced'
             params = {
                 'channel': [
@@ -154,12 +164,12 @@ def set_advanced(ct, ck, count):
                         "orgId": 2006794
                     }
                 ],  # 杂谈
-                'content': "<p>" + content + "<p>",
+                'content': "<p>" + YB_CONTENT[num]['content'] + "<p>",
                 'hasVLink': 0,
                 'isPublic': 1,  # 公开
                 'summary': '',
                 'thumbType': 1,
-                'title': content + str(random.randint(0, 40))
+                'title': YB_CONTENT[num]['title']
             }
             headers = {
                 'User-Agent': env.UserAgent2,
@@ -178,6 +188,19 @@ def set_advanced(ct, ck, count):
     print('微社区 %s' % '发帖完成')
 
 
+def get_one():
+    global YB_CONTENT
+    global GET_ONE
+    while GET_ONE:
+        ret = one.get_()
+        if ret['code']:
+            YB_CONTENT.append({
+                'title': ret['data']['title'],
+                'content': ret['data']['content'],
+            })
+        sleep(2)
+
+
 # 脚本
 if __name__ == '__main__':
     list_num = 35
@@ -192,13 +215,13 @@ if __name__ == '__main__':
     # 获取评论发布内容
     result = env.get_env('YB_COMMENT')
     if result['code'] != 1:
-        result = {'data': ['打卡打卡打卡']}
+        result = {'data': ['打卡打卡打卡打卡']}
     yb_comment = result['data'][0].split('|')
 
-    result = env.get_env('YB_CONTENT')
-    if result['code'] != 1:
-        result = {'data': ['坚持坚持再坚持，努力努力再努力！']}
-    yb_content = result['data'][0].split('|')
+    # result = env.get_env('YB_CONTENT')
+    # if result['code'] != 1:
+    #     result = {'data': ['坚持坚持再坚持，努力努力再努力！']}
+    # yb_content = result['data'][0].split('|')
 
     # 获取用户Cookie
     result = env.get_env('YB_COOKIE')
@@ -235,16 +258,19 @@ if __name__ == '__main__':
         # 评论
         _comment = threading.Thread(target=set_comment, args=(list, cookies, yb_comment,))
         # 发帖
-        _advanced = threading.Thread(target=set_advanced, args=(yb_content, cookies, add_num,))
+        _advanced = threading.Thread(target=set_advanced, args=(cookies, add_num,))
+        # 一言
+        _one = threading.Thread(target=get_one)
 
         _love.start()
         _comment.start()
+        _one.start()
         _advanced.start()
 
         _love.join()
         _comment.join()
         _advanced.join()
-
+        GET_ONE = False
     except Exception as ex:
         print('微社区 %s' % str(ex))
     print('任务结束 time:%f' % time())

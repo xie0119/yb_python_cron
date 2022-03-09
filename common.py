@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import re
-import json
 import base64
+import json
+import re
 import time
-
 import requests
 # docker exec -it qinglong bash -c "apk add python3 zlib-dev gcc jpeg-dev python3-dev musl-dev freetype-dev"
 # docker exec -it qinglong bash -c "pip install pycryptodome"
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto.PublicKey import RSA
+from hashlib import md5, sha1
 from env import Env
 
 env = Env()
@@ -133,7 +133,9 @@ class YiBan:
         }
         try:
             resp = requests.get(url=url, headers=headers).json()
-            return {'code': int(resp['code']), 'msg': resp['message'], 'data': resp['data'] if (resp['data']) else None}
+            if resp['status']:
+                return {'code': int(resp['code']), 'msg': resp['message'], 'data': resp['data']}
+            return {'code': int(resp['code']), 'msg': resp['message']}
         except Exception as ex:
             return {'code': -1, 'msg': '检查失败' + str(ex)}
 
@@ -178,8 +180,10 @@ class YiBan:
                 if start_time > create_time:
                     p = page
                     break
+                if start_time < create_time and page == p:
+                    page += 1
             p += 1
-        return {'code': 1, 'msg': '操作成功', 'data': temp, 'amount': score, 'date': Now.to_date(t, '%Y-%m-%d'),}
+        return {'code': 1, 'msg': '操作成功', 'data': temp, 'amount': score, 'date': Now.to_date(t, '%Y-%m-%d'), }
 
 
 # 图鉴 - 验证码识别 (http://www.ttshitu.com/)
@@ -191,7 +195,7 @@ class Captcha:
         try:
             result = env.get_env('CAPTCHA')
             if result['code'] == 1:
-                ct = result['data'].split('|')
+                ct = result['data'][0].split('|')
                 self.ct_user = ct[0]
                 self.ct_pass = ct[1]
             else:
@@ -234,11 +238,11 @@ class OpenApi:
                 print('OpenApi', result['msg'])
             else:
                 self.domain = result['data'][0]
-            result = env.get_env('CLIENT')
+            result = env.get_env('APPLICATION')
             if result['code'] != 1:
                 print('OpenApi', result['msg'])
             else:
-                self.client, self.secret = result['data'].split('|', 1)
+                self.client, self.secret = result['data'][0].split('|', 1)
         except Exception as ex:
             print('OpenApi 环境变量获取失败 ' + str(ex))
 
@@ -246,19 +250,19 @@ class OpenApi:
     def get_token(self):
         try:
             if self.domain is None or self.client is None or self.secret is None:
-                return {'code': -1, 'massage': 'OpenApi 环境变量[DOMAIN]或[CLIENT]获取失败'}
+                return {'code': -1, 'message': 'OpenApi 环境变量[DOMAIN]或[CLIENT]获取失败'}
             url = self.domain + "/open/auth/token?client_id=" + self.client + "&client_secret=" + self.secret
             resp = requests.get(url).json()
             if resp['code'] == 200:
                 self.token = resp['data']['token']
             return resp
         except Exception as ex:
-            return {'code': -1, 'massage': 'OpenApi 获取token出错' + str(ex)}
+            return {'code': -1, 'message': 'OpenApi 获取token出错' + str(ex)}
 
     # 获取所有环境变量
     def get_envs(self):
         if self.token is None:
-            return {'code': -1, 'massage': 'OpenApi token不存在 '}
+            return {'code': -1, 'message': 'OpenApi token不存在 '}
         url = self.domain + "/open/envs"
         headers = {
             'Authorization': 'Bearer ' + self.token
@@ -267,12 +271,12 @@ class OpenApi:
             resp = requests.get(url, headers=headers).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'massage': 'OpenApi 获取envs出错' + str(ex)}
+            return {'code': -1, 'message': 'OpenApi 获取envs出错' + str(ex)}
 
     # 更新指定ID环境变量
     def update_envs(self, id, name, value, remarks):
         if self.token is None:
-            return {'code': -1, 'massage': 'OpenApi token不存在 '}
+            return {'code': -1, 'message': 'OpenApi token不存在 '}
         url = self.domain + "/open/envs"
         params = {
             'id': id,
@@ -288,9 +292,28 @@ class OpenApi:
             resp = requests.put(url, headers=headers, data=json.dumps(params)).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'massage': 'OpenApi 获取envs出错' + str(ex)}
+            return {'code': -1, 'message': 'OpenApi 获取envs出错' + str(ex)}
 
 
+# 一言 APi
+class OneSay:
+    @staticmethod
+    def get_():
+        url = "https://v1.hitokoto.cn/?c=k&c=i&c=d&min_length=10"
+        try:
+            resp = requests.get(url).json()
+            if resp['id']:
+                data = {
+                    'title': f"[分享]{resp['hitokoto']}",
+                    'content': f"{resp['hitokoto']}————{resp['from']}"
+                }
+                return {'code': 1, 'message': 'OneSay 获取成功', 'data': data}
+            return {'code': -1, 'message': 'OneSay 获取句子出错'}
+        except Exception as ex:
+            return {'code': -1, 'message': 'OneSay 获取envs出错' + str(ex)}
+
+
+# 时间转换
 class Now:
     @staticmethod
     def to_time(date, pattern="%Y-%m-%d %H:%M:%S"):
@@ -305,3 +328,68 @@ class Now:
         timeArray = time.localtime(t)
         # 转换为日期文本
         return time.strftime(pattern, timeArray)
+
+
+# 对接控制台
+class UserServer:
+    token, private_key, domain, account, password = [None, None, None, None, None]
+    headers = {
+        'token': token,
+        'user': account,
+    }
+
+    # 初始化
+    def __init__(self):
+        try:
+            result = env.get_env('USER_SERVER')
+            if result['code'] != 1:
+                print('UserServer', result['msg'])
+            else:
+                self.domain, self.account, self.password = result['data'][0].split('|')
+        except Exception as ex:
+            print('UserServer 环境变量获取失败 ' + str(ex))
+
+    def get_token(self):
+        try:
+            if self.domain is None or self.account is None or self.password is None:
+                return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
+            url = self.domain + "/api/auth/getToken"
+            params = {
+                'user': self.account,
+                'pasw': md5(self.password)
+            }
+            resp = requests.post(url, data=params).json()
+            if resp['code'] == 1:
+                self.token = resp['data']['token']
+                self.private_key = resp['data']['private_key']
+            return resp
+        except Exception as ex:
+            return {'code': -1, 'msg': 'OpenApi 获取token出错' + str(ex)}
+
+    def get_rerun_user(self, tips):
+        try:
+            if self.domain is None or self.account is None or self.password is None:
+                return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
+            url = self.domain + "/api/Cron/get_rerun_user"
+            params = {
+                'tips': tips,
+            }
+            resp = requests.post(url, data=params).json()
+            return resp
+        except Exception as ex:
+            return {'code': -1, 'msg': 'OpenApi 获取token出错' + str(ex)}
+
+    def send_message(self, qq, content):
+        try:
+            if self.domain is None or self.account is None or self.password is None:
+                return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
+            url = self.domain + "/api/Cron/sendMessage"
+
+            params = {
+                'qq': qq,
+                'content': content
+            }
+            resp = requests.post(url, data=params).json()
+            return resp
+        except Exception as ex:
+            return {'code': -1, 'msg': 'OpenApi 获取token出错' + str(ex)}

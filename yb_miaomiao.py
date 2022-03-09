@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*
 """
 cron: 0 0 8 * * ?
-new Env('易班-易喵喵-评论发帖');
+new Env('易班-易喵喵');
+tag: yb_miaomiao
 """
 import json
 import random
@@ -12,9 +13,12 @@ import threading
 import requests
 from env import Env
 from time import time, sleep
-from common import YiBan
+from common import YiBan, OneSay
 
 env = Env()
+YB_CONTENT = []
+one = OneSay()
+GET_ONE = True
 
 
 def get_mm_list(ck, sz):
@@ -87,25 +91,47 @@ def mm_del_comment(cid, nid, uid, ck, tk):
         print('id:%s msg:社区评论 %s token:%s' % (uid, str(ex), tk))
 
 
-def mm_add(ct, ck):
-    num = len(ct) - 1
+def mm_add(ck):
+    global YB_CONTENT
+    while True:
+        if len(YB_CONTENT):
+            sleep(5)
+            break
+
     for i in ck:
-        url = 'https://mm.yiban.cn/article/index/add'
-        data = {
-            'content': (None, ct[random.randint(0, num)] + str(random.randint(0, 99999))),
-        }
-        headers = {
-            'Origin': 'https://mm.yiban.cn',
-            'Host': 'mm.yiban.cn',
-            'User-Agent': env.UserAgent,
-            'Cookie': i['cookie']
-        }
-        try:
-            resp = requests.post(url, files=data, headers=headers).json()
-            print('id:%s msg:易喵喵发贴 %s token:%s' % (i['userId'], resp['message'], i['token']))
-        except Exception as ex:
-            print('id:%s msg:易喵喵发帖 %s token:%s ' % (i['userId'], str(ex), i['token']))
+        for n in range(3):
+            num = random.randint(0, len(YB_CONTENT) - 1)
+            url = 'https://mm.yiban.cn/article/index/add'
+            data = {
+                'content': (None, YB_CONTENT[num]['title']),
+            }
+            headers = {
+                'Origin': 'https://mm.yiban.cn',
+                'Host': 'mm.yiban.cn',
+                'User-Agent': env.UserAgent,
+                'Cookie': i['cookie']
+            }
+            try:
+                resp = requests.post(url, files=data, headers=headers).json()
+                print('id:%s msg:易喵喵发贴 %s token:%s' % (i['userId'], resp['message'], i['token']))
+                if resp['code'] == 200:
+                    break
+            except Exception as ex:
+                print('id:%s msg:易喵喵发帖 %s token:%s ' % (i['userId'], str(ex), i['token']))
     print('易喵喵 %s' % '发帖完成')
+
+
+def get_one():
+    global YB_CONTENT
+    global GET_ONE
+    while GET_ONE:
+        ret = one.get_()
+        if ret['code']:
+            YB_CONTENT.append({
+                'title': ret['data']['title'],
+                'content': ret['data']['content'],
+            })
+        sleep(2)
 
 
 # 脚本
@@ -148,22 +174,26 @@ if __name__ == '__main__':
         result = {'data': ['打卡打卡打卡打卡打卡']}
     yb_comment = result['data'][0].split('|')
 
-    result = env.get_env('YB_CONTENT')
-    if result['code'] != 1:
-        result = {'data': ['坚持坚持再坚持，努力努力再努力！']}
-    yb_content = result['data'][0].split('|')
+    # result = env.get_env('YB_CONTENT')
+    # if result['code'] != 1:
+    #     result = {'data': ['坚持坚持再坚持，努力努力再努力！']}
+    # yb_content = result['data'][0].split('|')
 
     try:
         # 评论
         _comment = threading.Thread(target=mm_comment, args=(list, cookies, yb_comment,))
         # 发帖
-        _add = threading.Thread(target=mm_add, args=(yb_content, cookies,))
+        _add = threading.Thread(target=mm_add, args=(cookies,))
+        # 一言
+        _one = threading.Thread(target=get_one)
 
         _comment.start()
+        _one.start()
         _add.start()
 
         _comment.join()
         _add.join()
+        GET_ONE = False
     except Exception as ex:
         print('易喵喵 %s' % str(ex))
     print('任务结束 time:%f' % time())
