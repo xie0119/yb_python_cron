@@ -151,7 +151,9 @@ class YiBan:
         }
         try:
             resp = requests.get(url=url, headers=headers).json()
-            return {'code': resp['response'], 'msg': resp['message'], 'data': resp['data'] if (resp['data']) else None}
+            if resp['response'] != 100:
+                return {'code': resp['response'], 'msg': resp['message'], 'data': []}
+            return {'code': resp['response'], 'msg': resp['message'], 'data': resp['data']}
         except Exception as ex:
             return {'code': -1, 'msg': '检查失败' + str(ex)}
 
@@ -172,6 +174,8 @@ class YiBan:
             result = self.get_salary(ck, p)
             if result['code'] != 100:
                 continue
+
+            lens = len(result['data'])
             for n in result['data']:
                 create_time = Now.to_time(n['createTime'])
                 if stop_time > create_time > start_time:
@@ -182,7 +186,10 @@ class YiBan:
                     break
                 if start_time < create_time and page == p:
                     page += 1
-            p += 1
+            if lens < 100:
+                p = page + 1
+            else:
+                p += 1
         return {'code': 1, 'msg': '操作成功', 'data': temp, 'amount': score, 'date': Now.to_date(t, '%Y-%m-%d'), }
 
 
