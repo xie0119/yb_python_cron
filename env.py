@@ -41,6 +41,8 @@ class Env:
             if name not in os.environ:
                 return {'code': -1, 'msg': f'环境变量[{name}]不存在'}
             cookies = os.environ[name]
-            return {'code': 1, 'msg': '获取成功', 'data': random.shuffle(cookies.split('&'))}
+            cookies = cookies.split('&')
+            random.shuffle(cookies)
+            return {'code': 1, 'msg': '获取成功', 'data': cookies}
         except Exception as ex:
             return {'code': -2, 'msg': "获取变量失败 " + str(ex)}
