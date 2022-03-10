@@ -97,9 +97,9 @@ def mm_add(ck):
         if len(YB_CONTENT):
             sleep(5)
             break
-
-    for i in ck:
-        for n in range(3):
+    for n in range(3):
+        consume = 0.0
+        for v, k in ck:
             num = random.randint(0, len(YB_CONTENT) - 1)
             url = 'https://mm.yiban.cn/article/index/add'
             data = {
@@ -109,15 +109,21 @@ def mm_add(ck):
                 'Origin': 'https://mm.yiban.cn',
                 'Host': 'mm.yiban.cn',
                 'User-Agent': env.UserAgent,
-                'Cookie': i['cookie']
+                'Cookie': v['cookie']
             }
             try:
-                resp = requests.post(url, files=data, headers=headers).json()
-                print('id:%s msg:易喵喵发贴 %s token:%s' % (i['userId'], resp['message'], i['token']))
+                resp = requests.post(url, files=data, headers=headers)
+                consume += resp.elapsed.total_seconds()
+                resp = resp.json()
+                print('id:%s msg:易喵喵发贴 %s token:%s' % (v['userId'], resp['message'], v['token']))
                 if resp['code'] == 200:
-                    break
+                    ck.pop(k)
             except Exception as ex:
-                print('id:%s msg:易喵喵发帖 %s token:%s ' % (i['userId'], str(ex), i['token']))
+                print('id:%s msg:易喵喵发帖 %s token:%s ' % (v['userId'], str(ex), v['token']))
+        if len(ck) == 0:
+            break
+        s = 0.5 if consume > 60 else round(62 - consume, 3)
+        sleep(s)
     print('易喵喵 %s' % '发帖完成')
 
 

@@ -186,7 +186,7 @@ class YiBan:
                     break
                 if start_time < create_time and page == p:
                     page += 1
-            if lens < 100:
+            if lens < 30:
                 p = page + 1
             else:
                 p += 1
@@ -340,10 +340,7 @@ class Now:
 # 对接控制台
 class UserServer:
     token, private_key, domain, account, password = [None, None, None, None, None]
-    headers = {
-        'token': token,
-        'user': account,
-    }
+    headers = {}
 
     # 初始化
     def __init__(self):
@@ -363,15 +360,22 @@ class UserServer:
             url = self.domain + "/api/auth/getToken"
             params = {
                 'user': self.account,
-                'pasw': md5(self.password)
+                'pasw': sha1(self.password.encode("utf-8")).hexdigest()
             }
             resp = requests.post(url, data=params).json()
-            if resp['code'] == 1:
-                self.token = resp['data']['token']
-                self.private_key = resp['data']['private_key']
+            if resp['code'] != 1:
+                return resp
+            data = resp['data']['token'].encode("utf-8")
+            self.token = sha1(md5(data).hexdigest().encode("utf-8")).hexdigest()
+            self.private_key = resp['data']['private_key']
+            self.headers = {
+                'Token': self.token,
+                'User': self.account,
+                'Content-Type': 'application/json'
+            }
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'OpenApi 获取token出错' + str(ex)}
+            return {'code': -1, 'msg': 'UserServer 获取token出错' + str(ex)}
 
     def get_rerun_user(self, tips):
         try:
@@ -381,10 +385,10 @@ class UserServer:
             params = {
                 'tips': tips,
             }
-            resp = requests.post(url, data=params).json()
+            resp = requests.post(url, data=params, headers=self.headers).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'OpenApi 获取token出错' + str(ex)}
+            return {'code': -1, 'msg': 'UserServer 获取token出错' + str(ex)}
 
     def send_message(self, qq, content):
         try:
@@ -396,7 +400,17 @@ class UserServer:
                 'qq': qq,
                 'content': content
             }
-            resp = requests.post(url, data=params).json()
+            resp = requests.post(url, data=params, headers=self.headers).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'OpenApi 获取token出错' + str(ex)}
+            return {'code': -1, 'msg': 'UserServer 获取token出错' + str(ex)}
+
+    def submit_user_token(self, data):
+        try:
+            if self.domain is None or self.account is None or self.password is None:
+                return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
+            url = self.domain + "/api/Cron/update_user_token"
+            resp = requests.post(url, data=json.dumps({'data': data}), headers=self.headers).json()
+            return resp
+        except Exception as ex:
+            return {'code': -1, 'msg': 'UserServer 更新账号token出错' + str(ex)}

@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*
 
 import os
+import random
+
 import requests
 
 requests.packages.urllib3.disable_warnings()
@@ -39,6 +41,6 @@ class Env:
             if name not in os.environ:
                 return {'code': -1, 'msg': f'环境变量[{name}]不存在'}
             cookies = os.environ[name]
-            return {'code': 1, 'msg': '获取成功', 'data': cookies.split('&')}
+            return {'code': 1, 'msg': '获取成功', 'data': random.shuffle(cookies.split('&'))}
         except Exception as ex:
             return {'code': -2, 'msg': "获取变量失败 " + str(ex)}
