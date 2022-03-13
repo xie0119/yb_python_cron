@@ -157,41 +157,6 @@ class YiBan:
         except Exception as ex:
             return {'code': -1, 'msg': '检查失败' + str(ex)}
 
-    # 网薪统计 ck = cookie, t = 统计时间, page = 前 page * 100 条数据 由于没有查询 不建议查询超过3天前的数据
-    def total_salary(self, ck, t=time.time(), page=5):
-        # 时间格式化
-        d = Now.to_date(t, '%Y-%m-%d 00:00:00')
-        # 再转时间戳
-        start_time = Now.to_time(d)
-
-        d = Now.to_date(t, '%Y-%m-%d 23:59:59')
-        stop_time = Now.to_time(d)
-
-        score = 0
-        p = 1
-        temp = []
-        while p <= page:
-            result = self.get_salary(ck, p)
-            if result['code'] != 100:
-                continue
-
-            lens = len(result['data'])
-            for n in result['data']:
-                create_time = Now.to_time(n['createTime'])
-                if stop_time > create_time > start_time:
-                    score += n['amount'] if n['amount'] > 0 else 0
-                    temp.append(n)
-                if start_time > create_time:
-                    p = page
-                    break
-                if start_time < create_time and page == p:
-                    page += 1
-            if lens < 30:
-                p = page + 1
-            else:
-                p += 1
-        return {'code': 1, 'msg': '操作成功', 'data': temp, 'amount': score, 'date': Now.to_date(t, '%Y-%m-%d'), }
-
 
 # 图鉴 - 验证码识别 (http://www.ttshitu.com/)
 class Captcha:

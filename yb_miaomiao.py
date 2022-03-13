@@ -22,7 +22,7 @@ GET_ONE = True
 
 
 def get_mm_list(ck, sz):
-    url = "https://mm.yiban.cn/news/index/index3?offset=10&size=" + str(sz)
+    url = "https://mm.yiban.cn/news/index/index3?offset=6&size=" + str(sz)
     headers = {
         'Origin': 'https://mm.yiban.cn',
         'Host': 'mm.yiban.cn',
@@ -99,7 +99,8 @@ def mm_add(ck):
             break
     for n in range(3):
         consume = 0.0
-        for v, k in ck:
+
+        for k, v in enumerate(ck):
             num = random.randint(0, len(YB_CONTENT) - 1)
             url = 'https://mm.yiban.cn/article/index/add'
             data = {
@@ -120,6 +121,7 @@ def mm_add(ck):
                     ck.pop(k)
             except Exception as ex:
                 print('id:%s msg:易喵喵发帖 %s token:%s ' % (v['userId'], str(ex), v['token']))
+
         if len(ck) == 0:
             break
         s = 0.5 if consume > 60 else round(62 - consume, 3)
@@ -157,15 +159,19 @@ if __name__ == '__main__':
             check = YiBan.check_token(i)
             if check['code'] != 200:
                 print('token失效 %s %s' % (token, check['msg']))
-                continue
-            temp = {
-                'userId': check['data']['userId'],
-                'token': token,
-                'cookie': i,
-            }
-            cookies.append(temp)
+            else:
+                temp = {
+                    'userId': check['data']['userId'],
+                    'token': token,
+                    'cookie': i,
+                }
+                cookies.append(temp)
         except Exception as ex:
             print('状态 %s' % ex)
+
+    if len(cookies) <= 0:
+        print('易喵喵 可用cookie为空。')
+        exit(0)
 
     # 获取易喵喵列表 5 条评论
     result = get_mm_list(cookies[0]['cookie'], list_num)
