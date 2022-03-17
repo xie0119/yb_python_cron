@@ -17,7 +17,10 @@ from common import YiBan, OneSay
 env = Env()
 YB_CONTENT = []
 one = OneSay()
-GET_ONE = True
+GET_ONE = True  # 获取一言句子
+love_interval = 3.5  # 点赞间隔
+comment_interval = 65  # 评论间隔
+advanced_interval = 65  # 发布间隔
 
 
 def get_token(cookie):
@@ -82,12 +85,12 @@ def set_love(ls, ck):
             }
             try:
                 resp = requests.post(url, data=json.dumps(params, indent=2), headers=headers)
-                consume += resp.elapsed.total_seconds()
+                consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
                 print('id:%s msg:社区点赞 %s token:%s' % (i['userId'], resp['message'], i['token']))
             except Exception as ex:
                 print('id:%s msg:社区点赞 %s token:%s' % (i['userId'], str(ex), i['token']))
-        s = 0.5 if consume > 3.5 else round(3.5 - consume, 3)
+        s = 0.5 if consume > love_interval else round(love_interval - consume, 3)
         sleep(s)
     print('微社区 %s' % '点赞完成')
 
@@ -114,14 +117,14 @@ def set_comment(ls, ck, pl):
             }
             try:
                 resp = requests.post(url, data=json.dumps(params, indent=2), headers=headers)
-                consume += resp.elapsed.total_seconds()
+                consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
                 print('id:%s msg:社区评论 %s token:%s' % (i['userId'], resp['message'], i['token']))
                 if resp['status']:
                     del_comment(resp['data'], i['userId'], i['cookie'], i['token'])
             except Exception as ex:
                 print('id:%s msg:社区评论 %s token:%s' % (i['userId'], str(ex), i['token']))
-        s = 0.5 if consume > 60 else round(62 - consume, 3)
+        s = 0.5 if consume > comment_interval else round(comment_interval - consume, 3)
         sleep(s)
     print('微社区 %s' % '评论完成')
 
@@ -178,12 +181,12 @@ def set_advanced(ck, count):
             }
             try:
                 resp = requests.post(url, data=json.dumps(params), headers=headers)
-                consume += resp.elapsed.total_seconds()
+                consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
                 print('id:%s msg:社区发帖 %s token:%s' % (i['userId'], resp['message'], i['token']))
             except Exception as ex:
                 print('id:%s msg:社区发帖 %s token:%s' % (i['userId'], str(ex), i['token']))
-        s = 0.5 if consume > 60 else round(62 - consume, 3)
+        s = 0.5 if consume > advanced_interval else round(advanced_interval - consume, 3)
         sleep(s)
     print('微社区 %s' % '发帖完成')
 

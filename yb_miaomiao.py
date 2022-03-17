@@ -19,6 +19,8 @@ env = Env()
 YB_CONTENT = []
 one = OneSay()
 GET_ONE = True
+comment_interval = 65  # 评论间隔
+advanced_interval = 65  # 发布间隔
 
 
 def get_mm_list(ck, sz):
@@ -27,7 +29,7 @@ def get_mm_list(ck, sz):
         'Origin': 'https://mm.yiban.cn',
         'Host': 'mm.yiban.cn',
         'Content-Type': 'application/json;charset=UTF-8',
-        'User-Agent': env.UserAgent,
+        'User-Agent': env.UserAgent2,
         'Cookie': ck
     }
     try:
@@ -58,7 +60,7 @@ def mm_comment(ls, ck, pl):
             }
             try:
                 resp = requests.post(url=url, data=json.dumps(params), headers=headers)
-                consume += resp.elapsed.total_seconds()
+                consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
                 print('id:%s msg:喵喵评论 %s token:%s ' % (i['userId'], resp['message'], i['token']))
                 # 有时候没有id 烦
@@ -66,7 +68,7 @@ def mm_comment(ls, ck, pl):
                     mm_del_comment(resp['data']['id'], resp['data']['News_id'], i['userId'], i['cookie'], i['token'])
             except Exception as ex:
                 print('id:%s msg:喵喵评论 %s token:%s ' % (i['userId'], str(ex), i['token']))
-        s = 0.5 if consume > 60 else round(62 - consume, 3)
+        s = 0.5 if consume > comment_interval else round(comment_interval - consume, 3)
         sleep(s)
     print('易喵喵 %s' % '评论完成')
 
@@ -104,7 +106,7 @@ def mm_add(ck):
             num = random.randint(0, len(YB_CONTENT) - 1)
             url = 'https://mm.yiban.cn/article/index/add'
             data = {
-                'content': (None, YB_CONTENT[num]['title']),
+                'content': (None, YB_CONTENT[num]['title'] + '[' + str(random.randint(10, 99)) + ']'),
             }
             headers = {
                 'Origin': 'https://mm.yiban.cn',
@@ -114,7 +116,7 @@ def mm_add(ck):
             }
             try:
                 resp = requests.post(url, files=data, headers=headers)
-                consume += resp.elapsed.total_seconds()
+                consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
                 print('id:%s msg:易喵喵发贴 %s token:%s' % (v['userId'], resp['message'], v['token']))
                 if resp['code'] == 200:
@@ -124,7 +126,7 @@ def mm_add(ck):
 
         if len(ck) == 0:
             break
-        s = 0.5 if consume > 60 else round(62 - consume, 3)
+        s = 0.5 if consume > advanced_interval else round(advanced_interval - consume, 3)
         sleep(s)
     print('易喵喵 %s' % '发帖完成')
 
