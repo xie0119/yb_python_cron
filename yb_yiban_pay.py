@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-cron: 0 0
- * * ?
+cron: 0 0 16 * * ?
 new Env('易班-易伴参与挑战');
 RandomDelay="300"
 tag: yb_yiban_pay

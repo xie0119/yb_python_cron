@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 """
-cron: 0 0 8 * * ?
+cron: 0 0 7 * * ?
 new Env('易班-每日签到');
 RandomDelay="300"
 tag: yb_sign
