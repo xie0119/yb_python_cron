@@ -126,7 +126,7 @@ if __name__ == '__main__':
             try:
                 result = set_sign(i['value'], account)
                 st.msg_(result['code'], result['msg'], phone=account)
-                if result['code'] == 4 or result['code'] == 5 or result['code'] == 6:
+                if result['code'] != -1:
                     lst.pop(k)
             except Exception as ex:
                 st.msg_(-1, '打卡 %s' % ex, phone=account)
