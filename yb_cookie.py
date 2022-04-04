@@ -64,6 +64,7 @@ if __name__ == '__main__':
                 sql = "UPDATE Envs SET value = ? WHERE id = ?"
                 val = [yiban_token, i['id']]
                 db.update(sql, val)
+                break
             except Exception as ex:
                 st.msg_(-1, '更新Cookie失败 ', phone=account)
 
