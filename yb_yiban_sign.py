@@ -51,6 +51,7 @@ def set_sign(cookie, account):
             oauth_url = 'https://oauth.yiban.cn/code/usersure'
             r2 = session.post(oauth_url, data=oauth_param, headers=oauth_header)
             session.get(r2.json()['reUrl'], headers=headers)
+            session.get(url, headers=headers)
 
         # 验证码获取链接
         captcha_url = "https://daka.yibangou.com/index.php?m=Wap&c=Index&a=yanzhengma&res=62"
@@ -114,17 +115,21 @@ if __name__ == '__main__':
         st.msg_(-999, '易伴打卡: ' + result['msg'])
         exit(0)
 
-    for i in result['data']:
-        lit = i['remarks'].split('|')
-        if len(lit) != 2:
-            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
-            break
-        account = lit[0]
-        try:
-            result = set_sign(i['value'], account)
-            st.msg_(result['code'], result['msg'], phone=account)
-        except Exception as ex:
-            st.msg_(-1, '打卡 %s' % ex, phone=account)
+    lst = result['data']
+    for count in range(2):
+        for k, i in enumerate(lst):
+            lit = i['remarks'].split('|')
+            if len(lit) != 2:
+                st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+                break
+            account = lit[0]
+            try:
+                result = set_sign(i['value'], account)
+                st.msg_(result['code'], result['msg'], phone=account)
+                if result['code'] == 4 or result['code'] == 5 or result['code'] == 6:
+                    lst.pop(k)
+            except Exception as ex:
+                st.msg_(-1, '打卡 %s' % ex, phone=account)
 
     st.msg_(2000, f"[{label}]执行完成。")
     exit(0)
