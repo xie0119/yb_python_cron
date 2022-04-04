@@ -43,6 +43,8 @@ class Env:
             return '/ql/config/env.sh'
         elif os.path.exists('/ql/config/cookie.sh'):
             return '/ql/config/env.sh'
+        elif os.path.exists('/ql/data/config/env.sh'):
+            return '/ql/data/config/env.sh'
         return False
 
     # 检查sqlite
@@ -50,6 +52,8 @@ class Env:
     def check_sqlite_file():
         if os.path.exists('/ql/db/database.sqlite'):
             return '/ql/db/database.sqlite'
+        elif os.path.exists('/ql/data/db/database.sqlite'):
+            return '/ql/data/db/database.sqlite'
         return False
 
     # 获取指定 环境变量
