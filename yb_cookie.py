@@ -51,21 +51,22 @@ if __name__ == '__main__':
                 status = 0
                 yiban_token = f'yiban_user_token={result["yiban_user_token"]};'
 
+                temp = {
+                    'name': i['name'],
+                    'value': yiban_token,
+                    'remarks': i['remarks'],
+                    'id': i['id'],
+                    'status': status
+                }
+                user_list.append(temp)
+                st.msg_(result['code'], result['message'], data=result['data'], phone=account)
+
                 sql = "UPDATE Envs SET value = ? WHERE id = ?"
                 val = [yiban_token, i['id']]
                 db.update(sql, val)
-                break
             except Exception as ex:
                 st.msg_(-1, '更新Cookie失败 ', phone=account)
-        temp = {
-            'name': i['name'],
-            'value': yiban_token,
-            'remarks': i['remarks'],
-            'id': i['id'],
-            'status': status
-        }
-        user_list.append(temp)
-        st.msg_(result['code'], result['message'], data=result['data'], phone=account)
+
 
     db.closeDB()
 
