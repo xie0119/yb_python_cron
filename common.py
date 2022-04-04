@@ -68,7 +68,7 @@ class Env:
             if self.check_sqlite_file() is False:
                 return {'code': -1, 'msg': '数据库不存在'}
             # 查询数据
-            db = Sqlite(self.check_sqlite_file())
+            db = Sqlite()
             sql = "SELECT * FROM Envs WHERE name = ? AND status = 0"
             r1 = db.queryDict(sql, [name])
             db.closeDB()
@@ -514,7 +514,7 @@ class UserServer:
 
 
 class Sqlite:
-    def __init__(self, path='/ql/db/database.sqlite'):
+    def __init__(self, path=env.check_sqlite_file()):
         try:
             self.connect = sqlite3.connect(path)
             self.cursor = self.connect.cursor()
