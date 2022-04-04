@@ -1,18 +1,123 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import base64
-import json
+import os
 import re
+import sqlite3
 import time
 import requests
+import base64
+import json
 # docker exec -it qinglong bash -c "apk add python3 zlib-dev gcc jpeg-dev python3-dev musl-dev freetype-dev"
 # docker exec -it qinglong bash -c "pip install pycryptodome"
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from hashlib import md5, sha1
-from env import Env
+
+requests.packages.urllib3.disable_warnings()
+
+
+class Env:
+    # iPhone 13 Pro
+    UserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ' \
+                'Mobile/15E148 yiban_iOS/5.0.8 '
+    # Chrome浏览器
+    UserAgent2 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' \
+                 'Chrome/96.0.4664.110 Safari/537.36 '
+
+    # 微信浏览器
+    UserAgent3 = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 ' \
+                 'Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x6305002e) '
+
+    # APP版本
+    AppVersion = '5.0.2'
+
+    def __init__(self, label=None):
+        # 0 = sqlite数据库获取, 1 = 外部获取
+        self.mode = 1
+        self.label = label
+
+    # 适配各种平台环境cookie
+    @staticmethod
+    def check_env_file():
+        if os.path.exists('/ql/config/env.sh'):
+            return '/ql/config/env.sh'
+        elif os.path.exists('/ql/config/cookie.sh'):
+            return '/ql/config/env.sh'
+        return False
+
+    # 检查sqlite
+    @staticmethod
+    def check_sqlite_file():
+        if os.path.exists('/ql/db/database.sqlite'):
+            return '/ql/db/database.sqlite'
+        return False
+
+    # 获取指定 环境变量
+    def get_env(self, name):
+        if self.mode == 1 and name == 'YB_COOKIE':
+            return self.get_server()
+        else:
+            return self.get_sqlite(name)
+
+    def get_sqlite(self, name):
+        try:
+            if self.check_sqlite_file() is False:
+                return {'code': -1, 'msg': '数据库不存在'}
+            # 查询数据
+            db = Sqlite(self.check_sqlite_file())
+            sql = "SELECT * FROM Envs WHERE name = ? AND status = 0"
+            r1 = db.queryDict(sql, [name])
+            db.closeDB()
+            return {'code': 1, 'msg': '获取成功', 'data': r1}
+        except Exception as ex:
+            return {'code': -2, 'msg': '获取失败' + str(ex)}
+
+    def get_server(self):
+        try:
+            us = UserServer()
+            result = us.get_token()
+            if result['code'] != 200:
+                return {'code': result['code'], 'msg': result['message']}
+            # 查询数据
+            r1 = us.get_user_list(self.label)
+            # 更新任务状态
+            us.set_task_status(self.label, 0)
+            if r1['code'] != 200:
+                return {'code': r1['code'], 'msg': r1['message']}
+            return {'code': 1, 'msg': r1['message'], 'data': r1['data']}
+        except Exception as ex:
+            return {'code': -2, 'msg': '获取失败' + str(ex)}
+
+    # 结束设置
+    def set_stop_status(self):
+        try:
+            us = UserServer()
+            result = us.get_token()
+            if result['code'] != 200:
+                return {'code': result['code'], 'msg': result['message']}
+            # 查询数据
+            r1 = us.set_task_status(self.label, 1)
+            if r1['code'] != 200:
+                return {'code': r1['code'], 'msg': r1['message']}
+            return {'code': 1, 'msg': r1['message'], 'data': r1['data']}
+        except Exception as ex:
+            return {'code': -2, 'msg': '获取失败' + str(ex)}
+
 
 env = Env()
+
+
+class Setting:
+    label = None
+
+    def __init__(self, label=None):
+        self.label = label
+
+    def msg_(self, code, msg, data=None, phone=None, label=None):
+        print({'code': code, 'message': msg, 'data': data, 'label': label if label else self.label, 'phone': phone, 'time': time.time()})
+        if code == -999 or code == 2000:
+            Env(self.label).set_stop_status()
+
 
 
 class YiBan:
@@ -114,9 +219,11 @@ class YiBan:
         }
         try:
             resp = requests.get(url=url, headers=headers).json()
-            return {'code': resp['response'], 'msg': resp['message'], 'data': resp['data'] if (resp['data']) else None}
+            if resp['response'] != 100:
+                return {'code': resp['response'], 'msg': resp['message'], 'data': None}
+            return {'code': resp['response'], 'msg': resp['message'], 'data': resp['data']}
         except Exception as ex:
-            return {'code': -1, 'msg': '检查失败' + str(ex)}
+            return {'code': -1, 'msg': '登录失败' + str(ex), 'data': None}
 
     # 检测cookie/Token是否正确
     @staticmethod
@@ -167,13 +274,13 @@ class Captcha:
         try:
             result = env.get_env('CAPTCHA')
             if result['code'] == 1:
-                ct = result['data'][0].split('|')
+                ct = result['data'][0]['value'].split('|')
                 self.ct_user = ct[0]
                 self.ct_pass = ct[1]
             else:
-                print('Captcha', result['msg'])
+                Setting('Captcha').msg_(result['code'], result['msg'])
         except Exception as ex:
-            print('Captcha 初始化失败 ' + str(ex))
+            Setting('Captcha').msg_(-1, 'Captcha 初始化失败 ' + str(ex))
 
     # base64 验证码识别
     def base64_api(self, images):
@@ -207,16 +314,16 @@ class OpenApi:
         try:
             result = env.get_env('DOMAIN')
             if result['code'] != 1:
-                print('OpenApi', result['msg'])
+                Setting('OpenApi').msg_(result['code'], result['msg'])
             else:
                 self.domain = result['data'][0]
             result = env.get_env('APPLICATION')
             if result['code'] != 1:
-                print('OpenApi', result['msg'])
+                Setting('OpenApi').msg_(result['code'], result['msg'])
             else:
                 self.client, self.secret = result['data'][0].split('|', 1)
         except Exception as ex:
-            print('OpenApi 环境变量获取失败 ' + str(ex))
+            Setting('OpenApi').msg_(-1, 'OpenApi 环境变量获取失败 ' + str(ex))
 
     # 获取面板token
     def get_token(self):
@@ -269,20 +376,32 @@ class OpenApi:
 
 # 一言 APi
 class OneSay:
-    @staticmethod
-    def get_():
+
+    def get_(self):
         url = "https://v1.hitokoto.cn/?c=k&c=i&c=d&min_length=10"
         try:
             resp = requests.get(url).json()
-            if resp['id']:
-                data = {
-                    'title': f"[分享]{resp['hitokoto']}",
-                    'content': f"{resp['hitokoto']}————{resp['from']}"
-                }
-                return {'code': 1, 'message': 'OneSay 获取成功', 'data': data}
-            return {'code': -1, 'message': 'OneSay 获取句子出错'}
+            if 'id' not in resp:
+                return {'code': -1, 'message': 'OneSay 获取句子出错'}
+
+            if self.check_filter(resp['hitokoto']) is True:
+                return {'code': -1, 'message': 'OneSay 句子包含敏感词'}
+
+            data = {
+                'title': f"[分享]{resp['hitokoto']}",
+                'content': f"{resp['hitokoto']}————{resp['from']}"
+            }
+            return {'code': 1, 'message': 'OneSay 获取成功', 'data': data}
         except Exception as ex:
             return {'code': -1, 'message': 'OneSay 获取envs出错' + str(ex)}
+
+    @staticmethod
+    def check_filter(text):
+        keywords = ["暴力", "色情", "其他关键字"]
+        for v in keywords:
+            if v.strip() in text:
+                return True
+        return False
 
 
 # 时间转换
@@ -312,11 +431,11 @@ class UserServer:
         try:
             result = env.get_env('USER_SERVER')
             if result['code'] != 1:
-                print('UserServer', result['msg'])
+                Setting('UserServer').msg_(result['code'], result['msg'])
             else:
-                self.domain, self.account, self.password = result['data'][0].split('|')
+                self.domain, self.account, self.password = result['data'][0]['value'].split('|')
         except Exception as ex:
-            print('UserServer 环境变量获取失败 ' + str(ex))
+            Setting('UserServer').msg_(-1, '环境变量获取失败 ' + str(ex))
 
     def get_token(self):
         try:
@@ -328,7 +447,7 @@ class UserServer:
                 'pasw': sha1(self.password.encode("utf-8")).hexdigest()
             }
             resp = requests.post(url, data=params).json()
-            if resp['code'] != 1:
+            if resp['code'] != 200:
                 return resp
             data = resp['data']['token'].encode("utf-8")
             self.token = sha1(md5(data).hexdigest().encode("utf-8")).hexdigest()
@@ -340,27 +459,26 @@ class UserServer:
             }
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'UserServer 获取token出错' + str(ex)}
+            return {'code': -1, 'message': 'UserServer 获取token出错'}
 
-    def get_rerun_user(self, tips):
+    def get_user_list(self, tips):
         try:
             if self.domain is None or self.account is None or self.password is None:
                 return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
-            url = self.domain + "/api/Cron/get_rerun_user"
+            url = self.domain + "/api/Cron/get_user_list"
             params = {
                 'tips': tips,
             }
             resp = requests.post(url, data=params, headers=self.headers).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'UserServer 获取token出错' + str(ex)}
+            return {'code': -1, 'message': '[get_user_list] 用户列表失败'}
 
     def send_message(self, qq, content):
         try:
             if self.domain is None or self.account is None or self.password is None:
                 return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
             url = self.domain + "/api/Cron/sendMessage"
-
             params = {
                 'qq': qq,
                 'content': content
@@ -368,7 +486,7 @@ class UserServer:
             resp = requests.post(url, data=params, headers=self.headers).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'UserServer 获取token出错' + str(ex)}
+            return {'code': -1, 'message': 'UserServer 获取token出错' + str(ex)}
 
     def submit_user_token(self, data):
         try:
@@ -378,4 +496,88 @@ class UserServer:
             resp = requests.post(url, data=json.dumps({'data': data}), headers=self.headers).json()
             return resp
         except Exception as ex:
-            return {'code': -1, 'msg': 'UserServer 更新账号token出错' + str(ex)}
+            return {'code': -1, 'message': 'UserServer 更新账号token出错' + str(ex)}
+
+    def set_task_status(self, label, status):
+        try:
+            if self.domain is None or self.account is None or self.password is None:
+                return {'code': -1, 'message': 'UserServer 环境变量[USER_SERVER]获取失败'}
+            url = self.domain + "/api/Cron/set_task_status"
+            resp = requests.post(url, data=json.dumps({'label': label, 'status': status}), headers=self.headers).json()
+            return resp
+        except Exception as ex:
+            return {'code': -1, 'message': 'UserServer 设置任务状态出错' + str(ex)}
+
+
+class Sqlite:
+    def __init__(self, path='/ql/db/database.sqlite'):
+        try:
+            self.connect = sqlite3.connect(path)
+            self.cursor = self.connect.cursor()
+        except Exception as e:
+            Setting('Sqlite').msg_(-1, '连接数据库失败' + str(e))
+
+    def query(self, sql: str) -> list:
+        """查询"""
+        try:
+            queryResult = self.cursor.execute(sql).fetchall()
+            return queryResult
+        except Exception as e:
+            return []
+        finally:
+            self.connect.commit()
+
+    def queryDict(self, sql: str, ob) -> list:
+        """调用该函数返回结果为字典形式"""
+        try:
+            self.cursor.row_factory = self.dictFactory
+            queryResult = self.cursor.execute(sql, ob).fetchall()
+            return queryResult
+        except Exception as e:
+            return []
+        finally:
+            self.connect.commit()
+
+    def insert(self, sql: str, ob) -> bool:
+        """插入数据"""
+        try:
+            self.cursor.execute(sql, ob)
+            return True
+        except Exception as e:
+            return False
+        finally:
+            self.connect.commit()
+
+    def update(self, sql: str, ob) -> bool:
+        try:
+            self.cursor.execute(sql, ob)
+            return True
+        except Exception as e:
+            return False
+        finally:
+            self.connect.commit()
+
+    def delete(self, sql: str, ob) -> bool:
+        try:
+            self.cursor.execute(sql, ob)
+            return True
+        except Exception as e:
+            return False
+        finally:
+            self.connect.commit()
+
+    def closeDB(self) -> bool:
+        try:
+            self.cursor.close()
+            self.connect.close()
+            return True
+        except Exception as e:
+            return False
+
+    @staticmethod
+    def dictFactory(cursor, row):
+        """将sql查询结果整理成字典形式"""
+        d = {}
+        for index, col in enumerate(cursor.description):
+            d[col[0]] = row[index]
+        return d

@@ -3,21 +3,21 @@
 """
 cron: 0 20 6-7 * * ?
 new Env('易班-易伴打卡');
-RandomDelay="300"
 tag: yb_yiban_sign
 """
-import re
 import base64
 import requests
-from env import Env
-from common import Captcha
+from common import Captcha, Setting, Env
 
-env = Env()
 ct = Captcha()
+label = 'yb_yiban_sign'
+env = Env(label)
+st = Setting(label)
+client_id = "7af698a43be206c0"
 
 
 # 打卡
-def set_sign(cookie):
+def set_sign(cookie, account):
     """
     打卡
     :return:
@@ -29,7 +29,29 @@ def set_sign(cookie):
             'Cookie': cookie
         }
         session = requests.session()
-        session.get(url, headers=headers)
+        # 登录
+        r1 = session.get(url, headers=headers)
+
+        if client_id in r1.text:
+            oauth_header = {
+                'Host': 'oauth.yiban.cn',
+                'X-Requested-With': 'XMLHttpRequest',
+                'User-Agent': env.UserAgent,
+                'Referer': 'https://oauth.yiban.cn/code/html?client_id=' + client_id + '&redirect_uri=http://f.yiban.cn/iapp642231',
+            }
+
+            oauth_param = {
+                "client_id": "7af698a43be206c0",
+                "redirect_uri": "http://f.yiban.cn/iapp642231",
+                "state": "",
+                "scope": "1,2,3,4,",
+                "display": "html"
+            }
+
+            oauth_url = 'https://oauth.yiban.cn/code/usersure'
+            r2 = session.post(oauth_url, data=oauth_param, headers=oauth_header)
+            session.get(r2.json()['reUrl'], headers=headers)
+
         # 验证码获取链接
         captcha_url = "https://daka.yibangou.com/index.php?m=Wap&c=Index&a=yanzhengma&res=62"
         headers = {
@@ -66,8 +88,8 @@ def set_sign(cookie):
             resp = session.post(url, data=params, headers=headers).json()
             if resp['code'] == 1:
                 ct.report_error(capt['id'])
-                yb_token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', cookie)[0]
-                print('易伴打卡 token:%s %s %s' % (yb_token, resp['code'], '验证码错误'))
+
+                st.msg_(resp['code'], '验证码错误', phone=account)
             elif resp['code'] == 2:
                 return {'code': resp['code'], 'msg': '操作失败'}
             elif resp['code'] == 4:
@@ -89,13 +111,20 @@ if __name__ == '__main__':
         exit(0)
     result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
-        print('易伴打卡: ' + result['msg'])
+        st.msg_(-999, '易伴打卡: ' + result['msg'])
         exit(0)
 
     for i in result['data']:
+        lit = i['remarks'].split('|')
+        if len(lit) != 2:
+            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+            break
+        account = lit[0]
         try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            result = set_sign(i)
-            print('易伴打卡 token:%s %s %s' % (token, result['code'], result['msg']))
+            result = set_sign(i['value'], account)
+            st.msg_(result['code'], result['msg'], phone=account)
         except Exception as ex:
-            print('易伴打卡 %s' % ex)
+            st.msg_(-1, '打卡 %s' % ex, phone=account)
+
+    st.msg_(2000, f"[{label}]执行完成。")
+    exit(0)

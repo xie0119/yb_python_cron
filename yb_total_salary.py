@@ -5,14 +5,13 @@ cron: 0 0 12 * * ?
 new Env('易班-网薪统计');
 tag: yb_total_salary
 """
-import re
 import time
+from common import YiBan, Now, Setting, Env
 
-from env import Env
-from common import YiBan, Now
-
-env = Env()
 yb = YiBan()
+label = 'yb_total_salary'
+env = Env(label)
+st = Setting(label)
 
 
 # 网薪统计 ck = cookie, t = 统计时间, page = 前 page * 100 条数据 由于没有查询 不建议查询超过3天前的数据
@@ -57,13 +56,20 @@ if __name__ == '__main__':
 
     result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
-        print(result['msg'])
+        st.msg_(-999, result['msg'])
         exit(0)
 
     for i in result['data']:
+        lit = i['remarks'].split('|')
+        if len(lit) != 2:
+            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+            break
+        account = lit[0]
         try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            result = total_salary(i)
-            print('网薪统计 token:%s date:%s amount: %d' % (token, result['date'], result['amount']))
+            result = total_salary(i['value'])
+            st.msg_(
+                result['code'], result['msg'], data={'date': result['date'], 'amount': result['amount']}, phone=account)
         except Exception as ex:
-            print('网薪统计 %s %s' % (i, ex))
+            st.msg_(-1, '%s' % ex, phone=account)
+    st.msg_(2000, f"[{label}]执行完成。")
+    exit(0)

@@ -7,20 +7,20 @@ tag: yb_miaomiao
 """
 import json
 import random
-import re
 import threading
-
 import requests
-from env import Env
-from time import time, sleep
-from common import YiBan, OneSay
+from time import sleep
+from common import YiBan, OneSay, Setting, Env
 
-env = Env()
 YB_CONTENT = []
 one = OneSay()
 GET_ONE = True
-comment_interval = 65  # 评论间隔
-advanced_interval = 65  # 发布间隔
+comment_interval = 70  # 评论间隔
+advanced_interval = 70  # 发布间隔
+
+label = 'yb_miaomiao'
+env = Env(label)
+st = Setting(label)
 
 
 def get_mm_list(ck, sz):
@@ -46,10 +46,11 @@ def mm_comment(ls, ck, pl):
         comment_id = n['id']
         consume = 0.0
         for i in ck:
+            comment = pl[random.randint(0, num)] + str(random.randint(0, 9999))
             url = "https://mm.yiban.cn/news/comment/add?recommend_type=3"
             params = {
                 'id': comment_id,
-                'comment': pl[random.randint(0, num)] + str(random.randint(0, 9999)),
+                'comment': comment,
             }
             headers = {
                 'Origin': 'https://mm.yiban.cn',
@@ -62,18 +63,17 @@ def mm_comment(ls, ck, pl):
                 resp = requests.post(url=url, data=json.dumps(params), headers=headers)
                 consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
-                print('id:%s msg:喵喵评论 %s token:%s ' % (i['userId'], resp['message'], i['token']))
-                # 有时候没有id 烦
+                st.msg_(resp['code'], '[评论] %s' % resp['message'], data={'comment': comment, 'type': 'comment'}, phone=i['account'])
+                # 有时候没有id
                 if int(resp['code']) == 200 and resp['data'] != '':
-                    mm_del_comment(resp['data']['id'], resp['data']['News_id'], i['userId'], i['cookie'], i['token'])
+                    mm_del_comment(resp['data']['id'], resp['data']['News_id'], i['cookie'], i['account'])
             except Exception as ex:
-                print('id:%s msg:喵喵评论 %s token:%s ' % (i['userId'], str(ex), i['token']))
-        s = 0.5 if consume > comment_interval else round(comment_interval - consume, 3)
+                st.msg_(-1, '[评论] %s ' % str(ex), data={'comment': comment, 'type': 'comment'}, phone=i['account'])
+        s = 1 if consume > comment_interval else round(comment_interval - consume, 3)
         sleep(s)
-    print('易喵喵 %s' % '评论完成')
 
 
-def mm_del_comment(cid, nid, uid, ck, tk):
+def mm_del_comment(cid, nid, ck, users):
     url = 'https://mm.yiban.cn/news/comment/del'
     params = {
         'id': cid,
@@ -88,12 +88,14 @@ def mm_del_comment(cid, nid, uid, ck, tk):
     }
     try:
         resp = requests.post(url, data=json.dumps(params, indent=2), headers=headers).json()
-        print('id:%s msg:删除评论 %s token:%s' % (uid, resp['message'], tk))
+        st.msg_(resp['code'], '[删除评论] %s' % resp['message'], phone=users)
     except Exception as ex:
-        print('id:%s msg:社区评论 %s token:%s' % (uid, str(ex), tk))
+        st.msg_(-1, '[删除评论] %s' % str(ex), phone=users)
 
 
 def mm_add(ck):
+    ck = ck.copy()
+    global GET_ONE
     global YB_CONTENT
     while True:
         if len(YB_CONTENT):
@@ -101,12 +103,12 @@ def mm_add(ck):
             break
     for n in range(3):
         consume = 0.0
-
         for k, v in enumerate(ck):
             num = random.randint(0, len(YB_CONTENT) - 1)
+            content = YB_CONTENT[num]['title'] + '[' + str(random.randint(10, 99)) + ']'
             url = 'https://mm.yiban.cn/article/index/add'
             data = {
-                'content': (None, YB_CONTENT[num]['title'] + '[' + str(random.randint(10, 99)) + ']'),
+                'content': (None, content),
             }
             headers = {
                 'Origin': 'https://mm.yiban.cn',
@@ -118,17 +120,17 @@ def mm_add(ck):
                 resp = requests.post(url, files=data, headers=headers)
                 consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
-                print('id:%s msg:易喵喵发贴 %s token:%s' % (v['userId'], resp['message'], v['token']))
+                st.msg_(resp['code'], '[发贴] %s' % resp['message'], data={'content': content, 'type': 'add'}, phone=v['account'])
                 if resp['code'] == 200:
                     ck.pop(k)
             except Exception as ex:
-                print('id:%s msg:易喵喵发帖 %s token:%s ' % (v['userId'], str(ex), v['token']))
+                st.msg_(-1, '[发贴] %s' % str(ex), data={'content': content, 'type': 'add'}, phone=v['account'])
 
         if len(ck) == 0:
             break
-        s = 0.5 if consume > advanced_interval else round(advanced_interval - consume, 3)
+        s = 1 if consume > advanced_interval else round(advanced_interval - consume, 3)
         sleep(s)
-    print('易喵喵 %s' % '发帖完成')
+    GET_ONE = False
 
 
 def get_one():
@@ -136,7 +138,7 @@ def get_one():
     global GET_ONE
     while GET_ONE:
         ret = one.get_()
-        if ret['code']:
+        if ret['code'] == 1:
             YB_CONTENT.append({
                 'title': ret['data']['title'],
                 'content': ret['data']['content'],
@@ -150,43 +152,56 @@ if __name__ == '__main__':
     # 获取用户Cookie
     result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
-        print(result['msg'])
+        st.msg_(-999, result['msg'])
         exit(0)
 
     cookies = []
     # 检查 token, 获取评论 token
     for i in result['data']:
-        try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            check = YiBan.check_token(i)
-            if check['code'] != 200:
-                print('token失效 %s %s' % (token, check['msg']))
-            else:
+
+        lit = i['remarks'].split('|')
+        if len(lit) != 2:
+            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+            break
+        account = lit[0]
+
+        for count in range(3):
+            try:
+                check = YiBan.check_token(i['value'])
+                if check['code'] != 200:
+                    st.msg_(check['code'], 'token失效 %s' % (check['msg']), phone=account)
+                    continue
                 temp = {
                     'userId': check['data']['userId'],
-                    'token': token,
-                    'cookie': i,
+                    'cookie': i['value'],
+                    'account': account
                 }
                 cookies.append(temp)
-        except Exception as ex:
-            print('状态 %s' % ex)
+                break
+            except Exception as ex:
+                st.msg_(-1, 'token验证失败 %s' % ex, phone=account)
 
-    if len(cookies) <= 0:
-        print('易喵喵 可用cookie为空。')
+    if len(cookies) < 1:
+        st.msg_(-999, '可用cookie为空。')
         exit(0)
 
-    # 获取易喵喵列表 5 条评论
-    result = get_mm_list(cookies[0]['cookie'], list_num)
-    if result['code'] != 200:
-        print('获取微社区列表失败 %s ' % (result['msg']))
-        exit()
-    list = result['data']['list']
+    # 获取易喵喵列表 list_num 条评论
+    lst = []
+    for count in range(3):
+        result = get_mm_list(cookies[0]['cookie'], list_num)
+        if result['code'] != 200:
+            st.msg_(result['code'], '获取易喵喵列表失败 %s ' % (result['msg']), phone=cookies[0]['account'])
+            continue
+        lst = result['data']['list']
+
+    if len(lst) == 0:
+        st.msg_(-1, '易喵喵评论列表为空')
 
     # 获取评论发布内容
     result = env.get_env('YB_COMMENT')
     if result['code'] != 1:
         result = {'data': ['打卡打卡打卡打卡打卡']}
-    yb_comment = result['data'][0].split('|')
+    yb_comment = result['data'][0]['value'].split('|')
 
     # result = env.get_env('YB_CONTENT')
     # if result['code'] != 1:
@@ -195,7 +210,7 @@ if __name__ == '__main__':
 
     try:
         # 评论
-        _comment = threading.Thread(target=mm_comment, args=(list, cookies, yb_comment,))
+        _comment = threading.Thread(target=mm_comment, args=(lst, cookies, yb_comment,))
         # 发帖
         _add = threading.Thread(target=mm_add, args=(cookies,))
         # 一言
@@ -207,7 +222,8 @@ if __name__ == '__main__':
 
         _comment.join()
         _add.join()
-        GET_ONE = False
     except Exception as ex:
-        print('易喵喵 %s' % str(ex))
-    print('任务结束 time:%f' % time())
+        st.msg_(-1, '易喵喵 %s' % str(ex))
+
+    st.msg_(2000, f"[{label}]执行完成。")
+    exit(0)

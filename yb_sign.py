@@ -3,15 +3,15 @@
 """
 cron: 0 0 7 * * ?
 new Env('易班-每日签到');
-RandomDelay="300"
 tag: yb_sign
 """
 
-import re
 import requests
-from env import Env
+from common import Setting, Env
 
-env = Env()
+label = 'yb_sign'
+env = Env(label)
+st = Setting(label)
 
 
 def set_sign(cookie):
@@ -40,12 +40,24 @@ def set_sign(cookie):
 if __name__ == '__main__':
     result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
-        print(result['msg'])
+        st.msg_(-999, result['msg'])
         exit(0)
+
     for i in result['data']:
-        try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            result = set_sign(i)
-            print('每日签到 token:%s %s %s' % (token, result['code'], result['msg']))
-        except Exception as ex:
-            print('每日签到 %s' % ex)
+        lit = i['remarks'].split('|')
+        if len(lit) != 2:
+            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+            break
+        account = lit[0]
+
+        for count in range(3):
+            try:
+                result = set_sign(i['value'])
+                st.msg_(result['code'], result['msg'], phone=account)
+                if result['code'] == 200 or result['code'] == 212:
+                    break
+            except Exception as ex:
+                st.msg_(-1, ex, phone=account)
+
+    st.msg_(2000, f"[{label}]执行完成。")
+    exit(0)

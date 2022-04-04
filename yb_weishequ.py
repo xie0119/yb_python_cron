@@ -5,22 +5,23 @@ cron: 0 0 7 * * ?
 new Env('易班-微社区');
 tag: yb_weishequ
 """
-import re
 import json
 import random
 import threading
 import requests
-from env import Env
-from time import time, sleep
-from common import YiBan, OneSay
+from time import sleep
+from common import YiBan, OneSay, Setting, Env
 
-env = Env()
 YB_CONTENT = []
 one = OneSay()
 GET_ONE = True  # 获取一言句子
-love_interval = 3.5  # 点赞间隔
-comment_interval = 65  # 评论间隔
-advanced_interval = 65  # 发布间隔
+love_interval = 4  # 点赞间隔
+comment_interval = 70  # 评论间隔
+advanced_interval = 70  # 发布间隔
+
+label = 'yb_weishequ'
+env = Env(label)
+st = Setting(label)
 
 
 def get_token(cookie):
@@ -87,12 +88,11 @@ def set_love(ls, ck):
                 resp = requests.post(url, data=json.dumps(params, indent=2), headers=headers)
                 consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
-                print('id:%s msg:社区点赞 %s token:%s' % (i['userId'], resp['message'], i['token']))
+                st.msg_(resp['code'], '[点赞] %s' % resp['message'], data={'type': 'love'}, phone=i['account'])
             except Exception as ex:
-                print('id:%s msg:社区点赞 %s token:%s' % (i['userId'], str(ex), i['token']))
-        s = 0.5 if consume > love_interval else round(love_interval - consume, 3)
+                st.msg_(-1, '[点赞] %s' % str(ex), data={'type': 'love'}, phone=i['account'])
+        s = 1 if consume > love_interval else round(love_interval - consume, 3)
         sleep(s)
-    print('微社区 %s' % '点赞完成')
 
 
 # 评论
@@ -104,10 +104,11 @@ def set_comment(ls, ck, pl):
         user_id = n['user']['id']
         consume = 0.0
         for i in ck:
+            comment = pl[random.randint(0, num)] + str(random.randint(0, 9999))
             url = 'https://s.yiban.cn/api/post/comment'
             params = {
                 'postId': post_id,
-                'comment': pl[random.randint(0, num)] + str(random.randint(0, 9999)),
+                'comment': comment,
                 'userId': user_id,
                 'csrfToken': i['csrfToken']
             }
@@ -119,17 +120,21 @@ def set_comment(ls, ck, pl):
                 resp = requests.post(url, data=json.dumps(params, indent=2), headers=headers)
                 consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
-                print('id:%s msg:社区评论 %s token:%s' % (i['userId'], resp['message'], i['token']))
                 if resp['status']:
-                    del_comment(resp['data'], i['userId'], i['cookie'], i['token'])
+                    st.msg_(resp['code'], '[评论] %s' % resp['message'],
+                            data={'type': 'comment', 'comment': comment, 'commentId': resp['data']},
+                            phone=i['account'])
+                    del_comment(resp['data'], i['cookie'], i['account'])
+                else:
+                    st.msg_(resp['code'], '[评论] %s' % resp['message'], data={'type': 'comment', 'comment': comment},
+                            phone=i['account'])
             except Exception as ex:
-                print('id:%s msg:社区评论 %s token:%s' % (i['userId'], str(ex), i['token']))
+                st.msg_(-1, '[评论]%s' % str(ex), data={'type': 'comment'}, phone=i['account'])
         s = 0.5 if consume > comment_interval else round(comment_interval - consume, 3)
         sleep(s)
-    print('微社区 %s' % '评论完成')
 
 
-def del_comment(post_id, uid, ck, tk):
+def del_comment(post_id, ck, users):
     url = 'https://s.yiban.cn/api/post/delComment'
     params = {
         'commentId': post_id,
@@ -140,15 +145,15 @@ def del_comment(post_id, uid, ck, tk):
     }
     try:
         resp = requests.post(url, data=json.dumps(params, indent=2), headers=headers).json()
-        print('id:%s msg:删除评论 %s token:%s' % (uid, resp['message'], tk))
+        st.msg_(resp['code'], '[删除评论] %s' % resp['message'], data=params, phone=users)
     except Exception as ex:
-        print('id:%s msg:社区评论 %s token:%s' % (uid, str(ex), tk))
+        st.msg_(-1, '[删除评论] %s' % str(ex), phone=users)
 
 
 # 发帖
 def set_advanced(ck, count):
     global YB_CONTENT
-
+    global GET_ONE
     while True:
         if len(YB_CONTENT):
             sleep(5)
@@ -159,6 +164,8 @@ def set_advanced(ck, count):
         consume = 0.0
         for i in ck:
             num = random.randint(0, len(YB_CONTENT) - 1)
+            content = YB_CONTENT[num]['content']
+            title = YB_CONTENT[num]['title']
             url = 'https://s.yiban.cn/api/post/advanced'
             params = {
                 'channel': [
@@ -167,12 +174,12 @@ def set_advanced(ck, count):
                         "orgId": 2006794
                     }
                 ],  # 杂谈
-                'content': "<p>" + YB_CONTENT[num]['content'] + "<p>",
+                'content': "<p>" + content + "<p>",
                 'hasVLink': 0,
                 'isPublic': 1,  # 公开
                 'summary': '',
                 'thumbType': 1,
-                'title': YB_CONTENT[num]['title']
+                'title': title
             }
             headers = {
                 'User-Agent': env.UserAgent2,
@@ -183,12 +190,12 @@ def set_advanced(ck, count):
                 resp = requests.post(url, data=json.dumps(params), headers=headers)
                 consume += resp.elapsed.total_seconds() if resp.elapsed.total_seconds() > 0 else 0
                 resp = resp.json()
-                print('id:%s msg:社区发帖 %s token:%s' % (i['userId'], resp['message'], i['token']))
+                st.msg_(resp['code'], '[发帖] %s' % resp['message'], data={'content': content, 'title': title, 'type': 'add'}, phone=i['account'])
             except Exception as ex:
-                print('id:%s msg:社区发帖 %s token:%s' % (i['userId'], str(ex), i['token']))
+                st.msg_(-1, '[发帖] %s' % str(ex), data={'content': content, 'title': title, 'type': 'add'}, phone=i['account'])
         s = 0.5 if consume > advanced_interval else round(advanced_interval - consume, 3)
         sleep(s)
-    print('微社区 %s' % '发帖完成')
+    GET_ONE = False
 
 
 def get_one():
@@ -209,17 +216,23 @@ if __name__ == '__main__':
     list_num = 35
     add_num = 20
     # 获取微社区列表
-    result = get_list_by_board(10, list_num)
-    if result['code'] != 200:
-        print('获取微社区列表失败 %s ' % (result['msg']))
-        exit()
-    list = result['data']['list']
+    lst = []
+    for count in range(3):
+        result = get_list_by_board(10, list_num)
+        if result['code'] != 200:
+            st.msg_(result['code'], '获取微社区列表失败 %s ' % (result['msg']))
+            continue
+        lst = result['data']['list']
+        break
+
+    if len(lst) == 0:
+        st.msg_(-1, '微社区评论列表为空')
 
     # 获取评论发布内容
     result = env.get_env('YB_COMMENT')
     if result['code'] != 1:
         result = {'data': ['打卡打卡打卡打卡']}
-    yb_comment = result['data'][0].split('|')
+    yb_comment = result['data'][0]['value'].split('|')
 
     # result = env.get_env('YB_CONTENT')
     # if result['code'] != 1:
@@ -229,37 +242,50 @@ if __name__ == '__main__':
     # 获取用户Cookie
     result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
-        print(result['msg'])
+        st.msg_(-999, result['msg'])
         exit(0)
 
     cookies = []
     # 检查 token, 获取评论 token
     for i in result['data']:
-        try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            check = YiBan.check_token(i)
-            if check['code'] != 200:
-                print('token失效 %s %s' % (token, check['msg']))
-                continue
-            # 获取评论 csrfToken
-            result = get_token(i)
-            if result['code'] != 200:
-                print('csrfToken获取失败 %s %s' % (token, result['msg']))
-                continue
-            temp = {
-                'userId': check['data']['userId'],
-                'token': token,
-                'csrfToken': result['data']['csrfToken'],
-                'cookie': i + '; PHPSESSID=' + result['data']['PHPSESSID'],
-            }
-            cookies.append(temp)
-        except Exception as ex:
-            print('微社区 %s' % ex)
+        lit = i['remarks'].split('|')
+        if len(lit) != 2:
+            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+            break
+        account = lit[0]
+
+        for count in range(3):
+            try:
+
+                check = YiBan.check_token(i['value'])
+                if check['code'] != 200:
+                    st.msg_(check['code'], 'token失效 %s' % (check['msg']), phone=account)
+                    continue
+                # 获取评论 csrfToken
+                result = get_token(i['value'])
+                if result['code'] != 200:
+                    st.msg_(result['code'], '[csrfToken] %s' % result['msg'], phone=account)
+                    continue
+                temp = {
+                    'userId': check['data']['userId'],
+                    'csrfToken': result['data']['csrfToken'],
+                    'cookie': i['value'] + '; PHPSESSID=' + result['data']['PHPSESSID'],
+                    'account': account
+                }
+                cookies.append(temp)
+                break
+            except Exception as ex:
+                st.msg_(-1, '微社区 %s' % ex)
+
+    if len(cookies) < 1:
+        st.msg_(-999, '可用cookie为空。')
+        exit(0)
+
     try:
         # 点赞
-        _love = threading.Thread(target=set_love, args=(list, cookies,))
+        _love = threading.Thread(target=set_love, args=(lst, cookies,))
         # 评论
-        _comment = threading.Thread(target=set_comment, args=(list, cookies, yb_comment,))
+        _comment = threading.Thread(target=set_comment, args=(lst, cookies, yb_comment,))
         # 发帖
         _advanced = threading.Thread(target=set_advanced, args=(cookies, add_num,))
         # 一言
@@ -273,7 +299,8 @@ if __name__ == '__main__':
         _love.join()
         _comment.join()
         _advanced.join()
-        GET_ONE = False
     except Exception as ex:
-        print('微社区 %s' % str(ex))
-    print('任务结束 time:%f' % time())
+        st.msg_(-1, '微社区 %s' % ex)
+
+    st.msg_(2000, f"[{label}]执行完成。")
+    exit(0)

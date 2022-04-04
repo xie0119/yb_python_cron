@@ -3,14 +3,15 @@
 """
 cron: 0 0 16 * * ?
 new Env('易班-易伴参与挑战');
-RandomDelay="300"
 tag: yb_yiban_pay
 """
 import re
 import requests
-from env import Env
+from common import Setting, Env
 
-env = Env()
+label = 'yb_yiban_pay'
+env = Env(label)
+st = Setting(label)
 
 
 # 将支付金额转换为对应ID
@@ -104,14 +105,21 @@ def payment(cookie):
 if __name__ == '__main__':
     result = env.get_env('YB_COOKIE')
     if result['code'] != 1:
-        print(result['msg'])
+        st.msg_(-999, result['msg'])
         exit(0)
 
     for i in result['data']:
-        try:
-            token = re.findall(r'yiban_user_token=([a-f\d]{32}|[A-F\d]{32})', i)[0]
-            result = payment(i)
-            print('易伴支付 token:%s %s %s' % (token, result['code'], result['msg']))
-        except Exception as ex:
-            print('易伴支付 %s' % ex)
+        lit = i['remarks'].split('|')
+        if len(lit) != 2:
+            st.msg_(-1, '账号密码分割出错 ', data={'value': i['remarks']})
+            break
+        account = lit[0]
 
+        try:
+            result = payment(i['value'])
+            st.msg_(result['code'], result['msg'], phone=account)
+        except Exception as ex:
+            st.msg_(-1, '支付 %s' % ex, phone=account)
+
+    st.msg_(2000, f"[{label}]执行完成。")
+    exit(0)
