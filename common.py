@@ -473,7 +473,7 @@ class UserServer:
             params = {
                 'tips': tips,
             }
-            resp = requests.post(url, data=params, headers=self.headers).json()
+            resp = requests.post(url, data=json.dumps(params), headers=self.headers).json()
             return resp
         except Exception as ex:
             return {'code': -1, 'message': '[get_user_list] 用户列表失败'}
