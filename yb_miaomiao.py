@@ -173,7 +173,7 @@ if __name__ == '__main__':
                     continue
                 temp = {
                     'userId': check['data']['userId'],
-                    'cookie': i['value'] + i['value'].replace('yiban_user_token', 'loginToken'),,
+                    'cookie': i['value'] + i['value'].replace('yiban_user_token', 'loginToken'),
                     'account': account
                 }
                 cookies.append(temp)
