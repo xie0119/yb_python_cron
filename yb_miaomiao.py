@@ -173,7 +173,7 @@ if __name__ == '__main__':
                     continue
                 temp = {
                     'userId': check['data']['userId'],
-                    'cookie': i['value'],
+                    'cookie': i['value'] + i['value'].replace('yiban_user_token', 'loginToken'),,
                     'account': account
                 }
                 cookies.append(temp)
@@ -193,6 +193,7 @@ if __name__ == '__main__':
             st.msg_(result['code'], '获取易喵喵列表失败 %s ' % (result['msg']), phone=cookies[0]['account'])
             continue
         lst = result['data']['list']
+        break
 
     if len(lst) == 0:
         st.msg_(-1, '易喵喵评论列表为空')

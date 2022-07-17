@@ -179,7 +179,8 @@ def set_advanced(ck, count):
                 'isPublic': 1,  # 公开
                 'summary': '',
                 'thumbType': 1,
-                'title': title
+                'title': title,
+                'csrfToken': i['csrfToken']
             }
             headers = {
                 'User-Agent': env.UserAgent2,
