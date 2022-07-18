@@ -166,7 +166,7 @@ def set_advanced(ck, count):
             num = random.randint(0, len(YB_CONTENT) - 1)
             content = YB_CONTENT[num]['content']
             title = YB_CONTENT[num]['title']
-            url = 'https://s.yiban.cn/api/post/advanced'
+            url = 'https://s.yiban.cn/api/post/web'
             params = {
                 'channel': [
                     {
