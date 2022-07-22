@@ -124,7 +124,7 @@ def set_comment(ls, ck, pl):
                     st.msg_(resp['code'], '[评论] %s' % resp['message'],
                             data={'type': 'comment', 'comment': comment, 'commentId': resp['data']},
                             phone=i['account'])
-                    del_comment(resp['data'], i['cookie'], i['account'])
+                    # del_comment(resp['data'], i['cookie'], i['account'])
                 else:
                     st.msg_(resp['code'], '[评论] %s' % resp['message'], data={'type': 'comment', 'comment': comment},
                             phone=i['account'])
