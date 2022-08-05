@@ -29,7 +29,7 @@ class Env:
                  'Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x6305002e) '
 
     # APP版本
-    AppVersion = '5.0.2'
+    AppVersion = '5.0.11'
 
     def __init__(self, label=None):
         # 0 = sqlite数据库获取, 1 = 外部获取
