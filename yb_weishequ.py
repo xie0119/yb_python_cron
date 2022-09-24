@@ -286,20 +286,20 @@ if __name__ == '__main__':
         # 点赞
         _love = threading.Thread(target=set_love, args=(lst, cookies,))
         # 评论
-        _comment = threading.Thread(target=set_comment, args=(lst, cookies, yb_comment,))
+        # _comment = threading.Thread(target=set_comment, args=(lst, cookies, yb_comment,))
         # 发帖
-        _advanced = threading.Thread(target=set_advanced, args=(cookies, add_num,))
+        # _advanced = threading.Thread(target=set_advanced, args=(cookies, add_num,))
         # 一言
-        _one = threading.Thread(target=get_one)
+        # _one = threading.Thread(target=get_one)
 
         _love.start()
-        _comment.start()
-        _one.start()
-        _advanced.start()
+        # _comment.start()
+        # _one.start()
+        # _advanced.start()
 
         _love.join()
-        _comment.join()
-        _advanced.join()
+        # _comment.join()
+        # _advanced.join()
     except Exception as ex:
         st.msg_(-1, '微社区 %s' % ex)
 
